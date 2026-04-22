@@ -9,8 +9,19 @@ type CredenciamentoItem = {
   data_cadastro?: string | null;
 };
 
+type RankingConsultor = {
+  consultor: string;
+  total: number;
+  comissao: number;
+};
+
+type RankingCidade = {
+  cidade: string;
+  estado: string;
+  total: number;
+};
+
 export default async function DashboardPage() {
-  // 🔹 BUSCA DADOS DE CREDENCIAMENTOS IMPORTADOS
   const { data, error } = await supabase
     .from("credenciamentos_importados")
     .select("consultor, cidade, estado, comissao, cnpj, data_cadastro")
@@ -18,62 +29,63 @@ export default async function DashboardPage() {
 
   const credenciamentos: CredenciamentoItem[] = data || [];
 
-  // 🔹 MÉTRICAS PRINCIPAIS
   const totalCred = credenciamentos.length;
 
   const totalComissao = credenciamentos.reduce((acc, item) => {
     return acc + Number(item.comissao || 0);
   }, 0);
 
-  // 🔹 RANKING DE CONSULTORES
-  const rankingConsultores = Object.values(
-    credenciamentos.reduce((acc: Record<string, { consultor: string; total: number; comissao: number }>, item) => {
-      const nomeConsultor = item.consultor || "Não informado";
+  const rankingConsultores: RankingConsultor[] = Object.values(
+    credenciamentos.reduce(
+      (
+        acc: Record<string, RankingConsultor>,
+        item: CredenciamentoItem
+      ) => {
+        const nomeConsultor = item.consultor || "Não informado";
 
-      if (!acc[nomeConsultor]) {
-        acc[nomeConsultor] = {
-          consultor: nomeConsultor,
-          total: 0,
-          comissao: 0,
-        };
-      }
+        if (!acc[nomeConsultor]) {
+          acc[nomeConsultor] = {
+            consultor: nomeConsultor,
+            total: 0,
+            comissao: 0,
+          };
+        }
 
-      acc[nomeConsultor].total += 1;
-      acc[nomeConsultor].comissao += Number(item.comissao || 0);
+        acc[nomeConsultor].total += 1;
+        acc[nomeConsultor].comissao += Number(item.comissao || 0);
 
-      return acc;
-    }, {})
+        return acc;
+      },
+      {}
+    )
   ).sort((a, b) => b.total - a.total);
 
-  // 🔹 AGRUPAMENTO POR CIDADE
-  const rankingCidades = Object.values(
-    credenciamentos.reduce((acc: Record<string, { cidade: string; estado: string; total: number }>, item) => {
-      const cidade = item.cidade || "Não informada";
-      const estado = item.estado || "-";
-      const chave = `${cidade}-${estado}`;
+  const rankingCidades: RankingCidade[] = Object.values(
+    credenciamentos.reduce(
+      (acc: Record<string, RankingCidade>, item: CredenciamentoItem) => {
+        const cidade = item.cidade || "Não informada";
+        const estado = item.estado || "-";
+        const chave = `${cidade}-${estado}`;
 
-      if (!acc[chave]) {
-        acc[chave] = {
-          cidade,
-          estado,
-          total: 0,
-        };
-      }
+        if (!acc[chave]) {
+          acc[chave] = {
+            cidade,
+            estado,
+            total: 0,
+          };
+        }
 
-      acc[chave].total += 1;
+        acc[chave].total += 1;
 
-      return acc;
-    }, {})
+        return acc;
+      },
+      {}
+    )
   ).sort((a, b) => b.total - a.total);
 
-  // 🔹 BASE PREPARADA PARA CRUZAMENTO FUTURO
-  // Quando você importar as movimentações/vendas, este bloco será substituído pela lógica real.
-  const cruzamentoResumo = {
-    credenciados: totalCred,
-    comMovimento: 0,
-    semMovimento: totalCred,
-    percentualAtivacao: 0,
-  };
+  const liderConsultor = rankingConsultores[0] || null;
+  const liderCidade = rankingCidades[0] || null;
+  const top10Cidades = rankingCidades.slice(0, 10);
 
   if (error) {
     return (
@@ -87,58 +99,53 @@ export default async function DashboardPage() {
   }
 
   return (
-    <main style={{ padding: "24px" }}>
-      <h1>Dashboard</h1>
+    <main style={mainStyle}>
+      <div style={headerStyle}>
+        <h1 style={titleStyle}>Dashboard Comercial</h1>
+        <p style={subtitleStyle}>
+          Visão consolidada dos credenciamentos importados no Supabase.
+        </p>
+      </div>
 
-      {/* 🔹 CARDS PRINCIPAIS */}
-      <div style={cardsGridStyle}>
+      {/* Cards principais */}
+      <section style={cardsGridStyle}>
         <Card title="Total Credenciamentos">
-          <h2>{totalCred}</h2>
+          <MetricValue>{totalCred}</MetricValue>
         </Card>
 
         <Card title="Comissão Total">
-          <h2>
+          <MetricValue>
             {totalComissao.toLocaleString("pt-BR", {
               style: "currency",
               currency: "BRL",
             })}
-          </h2>
+          </MetricValue>
         </Card>
 
-        <Card title="Com Movimento">
-          <h2>{cruzamentoResumo.comMovimento}</h2>
+        <Card title="Consultor Líder">
+          <MetricValueSmall>
+            {liderConsultor ? liderConsultor.consultor : "-"}
+          </MetricValueSmall>
+          <MetricLabel>
+            {liderConsultor ? `${liderConsultor.total} credenciamentos` : ""}
+          </MetricLabel>
         </Card>
 
-        <Card title="Sem Movimento">
-          <h2>{cruzamentoResumo.semMovimento}</h2>
+        <Card title="Cidade Líder">
+          <MetricValueSmall>
+            {liderCidade
+              ? `${liderCidade.cidade} - ${liderCidade.estado}`
+              : "-"}
+          </MetricValueSmall>
+          <MetricLabel>
+            {liderCidade ? `${liderCidade.total} credenciamentos` : ""}
+          </MetricLabel>
         </Card>
-      </div>
-
-      {/* 🔹 BLOCO DE CRUZAMENTO */}
-      <section style={{ marginTop: "40px" }}>
-        <h2>Cruzamento Credenciamento x Movimentação</h2>
-        <div style={infoBoxStyle}>
-          <p style={{ marginBottom: "8px" }}>
-            Esta área já está preparada para o cruzamento com vendas/movimentações.
-          </p>
-          <p style={{ marginBottom: "8px" }}>
-            Assim que você importar a base de movimentação, vamos calcular:
-          </p>
-          <ul style={{ paddingLeft: "20px" }}>
-            <li>quantos credenciados realmente movimentaram</li>
-            <li>quantos ficaram sem movimento</li>
-            <li>percentual de ativação</li>
-            <li>tempo entre credenciamento e primeira movimentação</li>
-          </ul>
-          <p style={{ marginTop: "12px", fontWeight: 600 }}>
-            Ativação atual: {cruzamentoResumo.percentualAtivacao.toFixed(2)}%
-          </p>
-        </div>
       </section>
 
-      {/* 🔹 RANKING DE CONSULTORES */}
-      <section style={{ marginTop: "40px" }}>
-        <h2>Ranking de Consultores</h2>
+      {/* Ranking de consultores */}
+      <section style={sectionStyle}>
+        <h2 style={sectionTitleStyle}>Ranking de Consultores</h2>
 
         <div style={tableWrapperStyle}>
           <table style={tableStyle}>
@@ -167,9 +174,9 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {/* 🔹 RANKING POR CIDADE */}
-      <section style={{ marginTop: "40px" }}>
-        <h2>Credenciamentos por Cidade</h2>
+      {/* Top cidades */}
+      <section style={sectionStyle}>
+        <h2 style={sectionTitleStyle}>Top 10 Cidades por Credenciamento</h2>
 
         <div style={tableWrapperStyle}>
           <table style={tableStyle}>
@@ -181,7 +188,7 @@ export default async function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {rankingCidades.map((item) => (
+              {top10Cidades.map((item) => (
                 <tr key={`${item.cidade}-${item.estado}`}>
                   <td style={tdStyle}>{item.cidade}</td>
                   <td style={tdStyle}>{item.estado}</td>
@@ -192,11 +199,25 @@ export default async function DashboardPage() {
           </table>
         </div>
       </section>
+
+      {/* Observação estratégica */}
+      <section style={sectionStyle}>
+        <h2 style={sectionTitleStyle}>Leitura Estratégica</h2>
+        <div style={infoBoxStyle}>
+          <p style={paragraphStyle}>
+            Este painel já mostra a concentração de credenciamentos por
+            consultor e por cidade.
+          </p>
+          <p style={paragraphStyle}>
+            O próximo passo será cruzar essa base com movimentação/vendas para
+            medir qualidade do credenciamento, ativação da rede e retorno real.
+          </p>
+        </div>
+      </section>
     </main>
   );
 }
 
-// 🔹 COMPONENTE CARD
 function Card({
   title,
   children,
@@ -206,16 +227,48 @@ function Card({
 }) {
   return (
     <div style={cardStyle}>
-      <h4 style={{ marginBottom: "10px" }}>{title}</h4>
+      <h4 style={cardTitleStyle}>{title}</h4>
       {children}
     </div>
   );
 }
 
-// 🔹 ESTILOS
+function MetricValue({ children }: { children: React.ReactNode }) {
+  return <div style={metricValueStyle}>{children}</div>;
+}
+
+function MetricValueSmall({ children }: { children: React.ReactNode }) {
+  return <div style={metricValueSmallStyle}>{children}</div>;
+}
+
+function MetricLabel({ children }: { children: React.ReactNode }) {
+  return <div style={metricLabelStyle}>{children}</div>;
+}
+
+const mainStyle = {
+  padding: "24px",
+  maxWidth: "1400px",
+  margin: "0 auto",
+};
+
+const headerStyle = {
+  marginBottom: "24px",
+};
+
+const titleStyle = {
+  fontSize: "42px",
+  fontWeight: 800,
+  marginBottom: "8px",
+};
+
+const subtitleStyle = {
+  fontSize: "20px",
+  color: "#374151",
+};
+
 const cardsGridStyle = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
   gap: "20px",
   marginTop: "20px",
 };
@@ -223,16 +276,50 @@ const cardsGridStyle = {
 const cardStyle = {
   background: "#fff",
   padding: "20px",
-  borderRadius: "12px",
-  border: "1px solid #ddd",
+  borderRadius: "16px",
+  border: "1px solid #e5e7eb",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+};
+
+const cardTitleStyle = {
+  marginBottom: "12px",
+  fontSize: "18px",
+  fontWeight: 700,
+};
+
+const metricValueStyle = {
+  fontSize: "38px",
+  fontWeight: 800,
+};
+
+const metricValueSmallStyle = {
+  fontSize: "24px",
+  fontWeight: 800,
+  lineHeight: 1.3,
+};
+
+const metricLabelStyle = {
+  marginTop: "8px",
+  color: "#4b5563",
+  fontSize: "14px",
+};
+
+const sectionStyle = {
+  marginTop: "40px",
+};
+
+const sectionTitleStyle = {
+  fontSize: "30px",
+  fontWeight: 800,
+  marginBottom: "14px",
 };
 
 const tableWrapperStyle = {
   overflowX: "auto" as const,
   background: "#fff",
-  borderRadius: "12px",
+  borderRadius: "16px",
   border: "1px solid #e5e7eb",
-  marginTop: "10px",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
 };
 
 const tableStyle = {
@@ -242,23 +329,29 @@ const tableStyle = {
 
 const thStyle = {
   textAlign: "left" as const,
-  padding: "12px",
+  padding: "14px",
   borderBottom: "1px solid #e5e7eb",
   background: "#f9fafb",
   fontWeight: 700,
 };
 
 const tdStyle = {
-  padding: "12px",
+  padding: "14px",
   borderBottom: "1px solid #f0f0f0",
 };
 
 const infoBoxStyle = {
   background: "#fff",
   border: "1px solid #e5e7eb",
-  borderRadius: "12px",
+  borderRadius: "16px",
   padding: "20px",
-  marginTop: "10px",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+};
+
+const paragraphStyle = {
+  marginBottom: "10px",
+  lineHeight: 1.6,
+  color: "#374151",
 };
 
 const errorBoxStyle = {
