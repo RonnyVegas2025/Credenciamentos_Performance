@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   const totalComissao =
     data?.reduce((acc, item) => acc + Number(item.comissao || 0), 0) || 0;
 
-  // 🔹 PASSO 2 — CRIAR RANKING
+  // 🔹 RANKING CONSULTOR
   const ranking = Object.values(
     (data || []).reduce((acc: any, item: any) => {
       if (!acc[item.consultor]) {
@@ -25,6 +25,25 @@ export default async function DashboardPage() {
 
       acc[item.consultor].total += 1;
       acc[item.consultor].comissao += Number(item.comissao || 0);
+
+      return acc;
+    }, {})
+  ).sort((a: any, b: any) => b.total - a.total);
+
+  // 🔹 AGRUPAMENTO POR CIDADE (MAPA DE CALOR BASE)
+  const cidades = Object.values(
+    (data || []).reduce((acc: any, item: any) => {
+      const key = `${item.cidade}-${item.estado}`;
+
+      if (!acc[key]) {
+        acc[key] = {
+          cidade: item.cidade,
+          estado: item.estado,
+          total: 0,
+        };
+      }
+
+      acc[key].total += 1;
 
       return acc;
     }, {})
@@ -50,10 +69,10 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* 🔹 PASSO 3 — TABELA DE RANKING */}
+      {/* 🔹 RANKING CONSULTOR */}
       <h2 style={{ marginTop: "40px" }}>Ranking de Consultores</h2>
 
-      <table style={{ marginTop: "10px", width: "100%" }}>
+      <table style={tableStyle}>
         <thead>
           <tr>
             <th>Consultor</th>
@@ -72,6 +91,28 @@ export default async function DashboardPage() {
                   currency: "BRL",
                 })}
               </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* 🔥 CREDENCIAMENTOS POR CIDADE */}
+      <h2 style={{ marginTop: "40px" }}>Credenciamentos por Cidade</h2>
+
+      <table style={tableStyle}>
+        <thead>
+          <tr>
+            <th>Cidade</th>
+            <th>Estado</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cidades.map((c: any) => (
+            <tr key={c.cidade + c.estado}>
+              <td>{c.cidade}</td>
+              <td>{c.estado}</td>
+              <td>{c.total}</td>
             </tr>
           ))}
         </tbody>
@@ -97,3 +138,10 @@ function Card({ title, children }: any) {
     </div>
   );
 }
+
+// 🔹 ESTILO TABELA
+const tableStyle = {
+  marginTop: "10px",
+  width: "100%",
+  borderCollapse: "collapse" as const,
+};
